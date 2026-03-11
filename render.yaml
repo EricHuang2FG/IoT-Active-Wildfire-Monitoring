@@ -3,5 +3,5 @@ services:
     name: flask-app
     env: python
     buildCommand: ""
-    startCommand: gunicorn backend:app
+    startCommand: gunicorn backend.app:app
     plan: free
