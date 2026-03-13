@@ -8,7 +8,10 @@ import adafruit_requests as requests
 
 
 SSID, PASSWORD = os.getenv("WIFI_SSID"), os.getenv("WIFI_PASSWORD")
-BASE_URL = "http://172.20.10.3:8000"
+BASE_URL = "http://172.20.10.5:8000"
+
+
+# run the code on the CIRCUITPY thonny to get the MCU to connect to the hotspot
 
 
 def main() -> None:
