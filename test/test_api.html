@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Test API</title>
+</head>
+<body>
+
+<button onclick="post_data_to_mcu()">POST to MCU</button>
+<button onclick="post_data_to_server()">POST to Server</button>
+<button onclick="fetch_from_mcu()">Fetch From MCU</button>
+<button onclick="fetch_from_server()">Fetch From Server</button>
+
+
+<script>
+async function post_data_to_mcu() {
+  const baseUrl = "http://192.168.1.118:8000";
+  try {
+    let res = await fetch(`${baseUrl}/receive`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        to: "mcu_arm",
+        data: {
+          "name": "eric_huang_to_mcu",
+          "sanity": null,
+          "val": Math.random()
+        }
+      })
+    });
+
+    res = await res.json();
+    console.log(res);
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function post_data_to_server() {
+  const baseUrl = "http://192.168.1.118:8000";
+  try {
+    let res = await fetch(`${baseUrl}/receive`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        to: "server",
+        data: {
+          "name": "eric_huang_to_server",
+          "sanity": null,
+          "val": Math.random()
+        }
+      })
+    });
+
+    res = await res.json();
+    console.log(res);
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function fetch_from_mcu() {
+  const baseUrl = "http://192.168.1.118:8000";
+  try {
+    let res = await fetch(`${baseUrl}/get_mcu_data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        target: "mcu_arm"
+      })
+    });
+
+    res = await res.json();
+    console.log(res);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function fetch_from_server() {
+  const baseUrl = "http://192.168.1.118:8000";
+  try {
+    let res = await fetch(`${baseUrl}/get_server_data`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+
+    res = await res.json();
+    console.log(res);
+
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+</script>
+
+</body>
+</html>
