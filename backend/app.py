@@ -71,7 +71,7 @@ def home() -> str:
 
 @app.route("/receive", methods=["POST"])
 def receive() -> Response:
-    key = request.headers.get(API_KEY_ID)
+    key: str = request.headers.get(API_KEY_ID)
     if key != API_KEY:
         return Response(
             json.dumps(UNAUTHORIZED_DEFAULT_RESPONSE),
@@ -105,7 +105,7 @@ def receive() -> Response:
 
 @app.route("/get_mcu_data", methods=["POST"])
 def get_mcu_data() -> Response:
-    key = request.headers.get(API_KEY_ID)
+    key: str = request.headers.get(API_KEY_ID)
     if key != API_KEY:
         return Response(
             json.dumps(UNAUTHORIZED_DEFAULT_RESPONSE),
@@ -141,7 +141,7 @@ def get_mcu_data() -> Response:
 
 @app.route("/get_server_data", methods=["GET"])
 def get_server_data() -> Response:
-    key = request.headers.get(API_KEY_ID)
+    key: str = request.headers.get(API_KEY_ID)
     if key != API_KEY:
         return Response(
             json.dumps(UNAUTHORIZED_DEFAULT_RESPONSE),
