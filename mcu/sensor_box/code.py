@@ -9,7 +9,6 @@ import socketpool
 import ssl
 import adafruit_requests as requests
 import time
-
 import board
 import analogio
 import digitalio
@@ -23,38 +22,48 @@ API_KEY = os.getenv("API_KEY")
 headers = {"API-Key": API_KEY}
 
 SSID, PASSWORD = os.getenv("WIFI_SSID"), os.getenv("WIFI_PASSWORD")
-BASE_URL = "http://172.20.10.9:8000/"
+BASE_URL = "http://172.20.10.11:8000/"
 
 
-# Set a control GPIO pin for power to thermistor
-control_pin = digitalio.DigitalInOut(board.GP16)
-control_pin.direction = digitalio.Direction.OUTPUT # sends 3.3V to power circuit if True
-control_pin.value = False  # start with the power off to avoid self-heating of thermistor
+def init() -> None:
+    global control_pin, thermistor, gas_sensor, i2c_bme, bme680_sensor, i2c_am, am2320_sensor, pir
 
-# Set up analog input using pin connected to thermistor
-thermistor = analogio.AnalogIn(board.A1)
+    # Set a control GPIO pin for power to thermistor
+    control_pin = digitalio.DigitalInOut(board.GP16)
+    control_pin.direction = (
+        digitalio.Direction.OUTPUT
+    )  # sends 3.3V to power circuit if True
+    control_pin.value = (
+        False  # start with the power off to avoid self-heating of thermistor
+    )
 
-# Set up analog input using pin connected to gas sensor
-gas_sensor = analogio.AnalogIn(board.A0)
+    # Set up analog input using pin connected to thermistor
+    thermistor = analogio.AnalogIn(board.A1)
 
-# I2C for BME680 sensor
-i2c_bme = busio.I2C(scl=board.GP19, sda=board.GP18)
-bme680_sensor = adafruit_bme680.Adafruit_BME680_I2C(i2c_bme, address=0x76)
-# I2C for AM2320 sensor
-i2c_am = busio.I2C(scl=board.GP1, sda=board.GP0)
-am2320_sensor = adafruit_am2320.AM2320(i2c_am)
+    # Set up analog input using pin connected to gas sensor
+    gas_sensor = analogio.AnalogIn(board.A0)
 
-# Set up digital input for PIR sensor
-pir = digitalio.DigitalInOut(board.GP15)
-pir.direction = digitalio.Direction.INPUT
+    # I2C for BME680 sensor
+    i2c_bme = busio.I2C(scl=board.GP19, sda=board.GP18)
+    bme680_sensor = adafruit_bme680.Adafruit_BME680_I2C(i2c_bme, address=0x76)
+
+    # I2C for AM2320 sensor
+    i2c_am = busio.I2C(scl=board.GP1, sda=board.GP0)
+    am2320_sensor = adafruit_am2320.AM2320(i2c_am)
+
+    # Set up PIR
+    pir = digitalio.DigitalInOut(board.GP15)
+    pir.direction = digitalio.Direction.INPUT
 
 
 def main() -> None:
+    global control_pin, thermistor, gas_sensor, i2c_bme, bme680_sensor, i2c_am, am2320_sensor, pir
+
     wifi.radio.connect(SSID, PASSWORD)
     print("Connected:", wifi.radio.ipv4_address)
 
     # reads pem file and stores it as string in cert_data variable
-    with open("/render.pem", "r") as f:
+    with open("/render.pem", "rb") as f:
         cert_data = f.read()
 
     # creates network session
@@ -74,7 +83,12 @@ def main() -> None:
                 "humidity": am2320_sensor.relative_humidity,
                 "pir": pir.value,
                 "gas": gas_sensor.value,
+                "id": "mcu_sensor_box",
+                "time": time.time(),
+                "location": 0.0,
+                "status": "on",
             }
+
             post_server(http, sensor_readings)
             post_mcu_arm(http, sensor_readings)
             get_server(http)
@@ -86,7 +100,10 @@ Calculates the temperature in Celsius from the raw thermistor data
 using the B coefficient Steinhart-Hart equation
 """
 
+
 def thermistor_temp_C(R0=10000.0, T0=25.0, B=3950.0) -> float:
+    global control_pin, thermistor
+
     control_pin.value = True  # turn power on to read temperature
 
     thermistor_resistance = 10000 / (
@@ -198,7 +215,7 @@ def get_mcu_arm(http) -> None:
     if response_dictionary.get("status_code") != 200:
         print(response_dictionary.get("message"))
     else:
-        print(response_dictionary.get("data"))
+        print(f"Data from mcu_arm: {response_dictionary.get('data')}")
 
     response.close()
 

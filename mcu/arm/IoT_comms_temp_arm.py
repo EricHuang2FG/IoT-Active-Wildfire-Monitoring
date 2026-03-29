@@ -12,7 +12,7 @@ API_KEY = os.getenv("API_KEY")
 headers = {"API-Key": API_KEY}
 
 SSID, PASSWORD = os.getenv("WIFI_SSID"), os.getenv("WIFI_PASSWORD")
-BASE_URL = "http://172.20.10.9:8000/"
+BASE_URL = "http://172.20.10.11:8000/"
 
 
 def main() -> None:

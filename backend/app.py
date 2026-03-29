@@ -81,6 +81,7 @@ def receive() -> Response:
         )
 
     data: dict = request.get_json(silent=True) or {}
+    print(data)
     to, data = data.get("to"), data.get("data")
 
     if not to or not data:
