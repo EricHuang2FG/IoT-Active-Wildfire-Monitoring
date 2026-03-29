@@ -21,7 +21,7 @@ API_KEY = os.getenv("API_KEY")
 headers = {"API-Key": API_KEY}
 
 SSID, PASSWORD = os.getenv("WIFI_SSID"), os.getenv("WIFI_PASSWORD")
-BASE_URL = "http://172.20.10.9:8000/"
+BASE_URL = "http://172.20.10.11:8000"
 
 
 class ServoMotor:
@@ -162,7 +162,7 @@ def post_mcu_sensor_box(http, sensor_readings) -> None:
         "data": sensor_readings,
     }
 
-    for i in range(5):
+    for _ in range(5):
         response = http.post(
             f"{BASE_URL}/receive",
             json=data,
@@ -183,7 +183,7 @@ def post_mcu_sensor_box(http, sensor_readings) -> None:
 
 
 def get_server(http) -> None:
-    for i in range(5):
+    for _ in range(5):
         response = http.get(
             f"{BASE_URL}/get_server_data",
             headers=headers,
@@ -209,7 +209,7 @@ def get_mcu_sensor_box(http) -> None:
         "target": "mcu_sensor_box",
     }
 
-    for i in range(5):
+    for _ in range(5):
         response = http.post(
             f"{BASE_URL}/get_mcu_data",
             json=target_dictionary,
@@ -226,7 +226,7 @@ def get_mcu_sensor_box(http) -> None:
     if response_dictionary.get("status_code") != 200:
         print(response_dictionary.get("message"))
     else:
-        print(response_dictionary.get("data"))
+        print(f"Data from mcu_sensor_box: {response_dictionary.get('data')}")
 
     response.close()
 
@@ -283,8 +283,11 @@ def main() -> None:
         ) and (current_time > last_time + 10):
             sensor_readings = {
                 "location": 0,
+                "time": time.time(),
+                "id": "mcu_arm",
+                "status": "active",
             }
-            # post_server(http, sensor_readings)
+            post_server(http, sensor_readings)
             post_mcu_sensor_box(http, sensor_readings)
             get_server(http)
             get_mcu_sensor_box(http)

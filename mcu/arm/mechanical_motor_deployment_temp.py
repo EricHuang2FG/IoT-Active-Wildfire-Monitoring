@@ -22,7 +22,7 @@ class ServoMotor:
         clip: bool = False,
         continuous: bool = True,
         max_throttle: float = 0.1,
-        calibrated_stop_throttle: float = 0.0
+        calibrated_stop_throttle: float = 0.0,
     ) -> None:
         self.continuous: bool = continuous
 
@@ -97,7 +97,13 @@ def init() -> None:
     rotator = ServoMotor(board.GP28, duty_cycle=2**15, frequency=50)
 
     global actuator
-    actuator = ServoMotor(board.GP11, duty_cycle=2**15, frequency=50, max_throttle=0.9, calibrated_stop_throttle=0.09)
+    actuator = ServoMotor(
+        board.GP11,
+        duty_cycle=2**15,
+        frequency=50,
+        max_throttle=0.9,
+        calibrated_stop_throttle=0.09,
+    )
 
 
 def await_button_release(button: digitalInOut) -> None:
