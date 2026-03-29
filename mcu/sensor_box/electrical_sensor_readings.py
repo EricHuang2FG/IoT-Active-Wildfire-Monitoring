@@ -1,6 +1,6 @@
 '''
-ESC204 Wildfire
-Task: Desc.
+Code for sensors in the sensor box. Provides temperature, 
+humidity, and gas measurements in the environment.
 '''
 
 # Import libraries needed
@@ -27,13 +27,10 @@ gas_sensor = analogio.AnalogIn(board.A0)
 # I2C for BME680 sensor
 i2c_bme = busio.I2C(scl=board.GP19, sda=board.GP18) 
 bme680_sensor = adafruit_bme680.Adafruit_BME680_I2C(i2c_bme, address=0x76)
+
 # I2C for AM2320 sensor
 i2c_am = busio.I2C(scl=board.GP1, sda=board.GP0)
 am2320_sensor = adafruit_am2320.AM2320(i2c_am)
-
-# Set up digital input for PIR sensor
-pir = digitalio.DigitalInOut(board.GP15)
-pir.direction = digitalio.Direction.INPUT
 
 def thermistor_temp_C(R0 = 10000.0, T0 = 25.0, B = 3950.0):
     '''
@@ -50,31 +47,18 @@ def thermistor_temp_C(R0 = 10000.0, T0 = 25.0, B = 3950.0):
     return temp
 
 while True:
-    #print(thermistor_temp_C())
+    # all temperature readings
+    temperature = (f'Thermistor Temperature: {thermistor_temp_C()} C',
+                   f'AM2320 Temperature: {am2320_sensor.temperature} C',
+                   f'BME680 Temperature: {bme680_sensor.temperature} C')
+    print(temperature)
 
-    #print(f'Humidity: {am2320_sensor.relative_humidity} %')
-    
-    #print(f'Temperature: {am2320_sensor.temperature} C')
+    # humidity readings 
+    print(f'Humidity: {am2320_sensor.relative_humidity} %')
 
-    #print(pir.value)
+    # gas readings 
+    gas_readings = (f'BME680 Gas: {bme680_sensor.gas} ohms',
+                    f'MQ-2 Gas: {(gas_sensor.value)/65535.0 * 3.3} V')
+    print(gas_readings)
     
-    #print(gas_sensor.value)
-    
-    #print(f'Temperature (C): {bme680_sensor.temperature}')
-    
-    #print(f'Gas (ohms): {bme680_sensor.gas}')
-    
-    #print(f'Humidity (%): {bme680_sensor.humidity}')
-
-    #print(f'Pressure (hPa): {bme680_sensor.pressure}')
-
-    data = (f'Temperature: {thermistor_temp_C()} C',
-            f'Humidity: {am2320_sensor.relative_humidity} %',
-            f'PIR: {pir.value}',
-            f'Gas: {gas_sensor.value} idk the units yet')
-    
-
-    print(data)
     time.sleep(1)  # wait 1 second between readings
-
-#write down design decision somewhere: to avoid self heating,power the voltage divider from GPIO pin instead of 3.3V
