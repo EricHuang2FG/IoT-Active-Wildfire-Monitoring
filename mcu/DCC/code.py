@@ -1,9 +1,10 @@
-# MCU for sensor box
+# MCU for Data Collection Component (DCC)
 
-# MCU is client-side, sends HTTPS request to server over local network
-# MCU POST to server and get data/instructions from server and other pico
+# MCU is client-side, sends HTTP request to server over local network
+# MCU POST to server and GET data from server and other pico
 
-import os  # access environmental variables stored on board in settings.toml file
+# access environmental variables stored on board in settings.toml file
+import os
 import wifi
 import socketpool
 import ssl
@@ -23,6 +24,16 @@ headers = {"API-Key": API_KEY}
 
 SSID, PASSWORD = os.getenv("WIFI_SSID"), os.getenv("WIFI_PASSWORD")
 BASE_URL = "http://172.20.10.11:8000/"
+
+"""
+Initializes and configures all sensors connected to the MCU.
+
+Sets up the following hardware:
+    - Thermistor (A1): Analog temperature sensor powered via GP16 to prevent self-heating when idle.
+    - Gas sensor (A0): Analog air quality sensor.
+    - BME680 (I2C: SCL=GP19, SDA=GP18): Temperature, humidity, pressure, and gas resistance sensor.
+    - AM2320 (I2C: SCL=GP1, SDA=GP0): Temperature and humidity sensor.
+"""
 
 
 def init() -> None:
@@ -55,6 +66,15 @@ def init() -> None:
     # Set up PIR, Commented out due to the redundancy of the boolean reading it provides
     # pir = digitalio.DigitalInOut(board.GP15)
     # pir.direction = digitalio.Direction.INPUT
+
+
+"""
+Connects to WiFi, establishes an HTTP session, `/render.pem` stores the certification
+Enters an infinite while loop that reads and transmits sensor data every
+10 seconds. Each iteration collects temperature, humidity, and gas readings
+and posts them to both the server and the SDS MCU, then retrieves any
+pending data from each.
+"""
 
 
 def main() -> None:
@@ -103,30 +123,43 @@ using the B coefficient Steinhart-Hart equation
 """
 
 
-def thermistor_temp_C(R0=10000.0, T0=25.0, B=3950.0) -> float:
-    global control_pin, thermistor
+def thermistor_temp_C(R0=10000.0, T0=25.0, B=3950.0):
 
     control_pin.value = True  # turn power on to read temperature
 
-    thermistor_resistance = 10000 / (
-        65535 / thermistor.value - 1
-    )  # thermistor resistance in ohms
-    steinhart = math.log(thermistor_resistance / R0) / B + 1.0 / (
-        T0 + 273.15
-    )  # find 1/T
-    temp = (1.0 / steinhart) - 273.15  # find T in celcius
+    try:  # error handling for division by 0 and value error due to thermistor.value
+        thermistor_resistance = 10000 / (
+            65535 / thermistor.value - 1
+        )  # thermistor resistance in ohms
+        steinhart = math.log(thermistor_resistance / R0) / B + 1.0 / (
+            T0 + 273.15
+        )  # find 1/T
+        temp = (1.0 / steinhart) - 273.15  # find T in celcius
+    except (ZeroDivisionError, ValueError):
+        control_pin.value = False
+        return None
 
     control_pin.value = False  # turn power off to save battery and prevent self heating
     return temp
 
 
+"""
+The following functions make varying POST or GET http requests to the server.
+Each http request is sent with 'headers' including the API-Key and a defined
+TIMEOUT value of 30 seconds to ensure the promise is not waiting indefinitely
+to be fulfilled and a 408 timeout error code will be thrown.
+In case of off-chance errors, each http call is tried up to 5 times before
+an error status code is thrown.
+"""
+
+
+# sensor_readings (dict) are POSTED to server and appended to server queue
 def post_server(http, sensor_readings) -> None:
     data = {
         "to": "server",
         "data": sensor_readings,
     }
 
-    # calls server up to 5 times, and if don't break early then checks on the 5th time
     for _ in range(5):
         response = http.post(
             f"{BASE_URL}/receive",
@@ -147,6 +180,7 @@ def post_server(http, sensor_readings) -> None:
     response.close()
 
 
+# sensor_readings (dict) are POSTED to server and appended to MCU queue specified by `to`
 def post_mcu_arm(http, sensor_readings) -> None:
     data = {
         "to": "mcu_arm",
@@ -173,6 +207,7 @@ def post_mcu_arm(http, sensor_readings) -> None:
     response.close()
 
 
+# Data is requested from server queue
 def get_server(http) -> None:
     for _ in range(5):
         response = http.get(
@@ -195,6 +230,7 @@ def get_server(http) -> None:
     response.close()
 
 
+# Data is requested from MCU queue specified by `target`
 def get_mcu_arm(http) -> None:
     target_dictionary = {
         "target": "mcu_arm",

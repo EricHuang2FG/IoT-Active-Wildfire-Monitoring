@@ -1,3 +1,7 @@
+"""
+Initialize global constants used in dcss/app.py
+"""
+
 MCU_SENSOR_BOX = "mcu_sensor_box"
 MCU_ARM = "mcu_arm"
 SERVER = "server"

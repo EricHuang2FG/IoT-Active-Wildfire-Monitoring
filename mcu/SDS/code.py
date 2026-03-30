@@ -1,7 +1,8 @@
-# MCU for arm
+# MCU for Sensor Deploying Subsystem (SDS)
 
 # Import for IoT
-import os  # access environmental variables stored on board in settings.toml file
+# access environmental variables stored on board in settings.toml file
+import os
 import wifi
 import socketpool
 import ssl
@@ -22,6 +23,44 @@ headers = {"API-Key": API_KEY}
 
 SSID, PASSWORD = os.getenv("WIFI_SSID"), os.getenv("WIFI_PASSWORD")
 BASE_URL = "http://172.20.10.11:8000"
+
+
+"""Controls both standard and continuous rotation servos via PWM.
+
+Standard mode moves to a target angle in increments; continuous mode
+rotates at a set throttle with a calibrated stop value to account for
+motor drift.
+
+Functions:
+    `set_angle` sets the servo to a target angle
+    Args:
+        angle (int): Target angle in degrees
+    Returns:
+        None
+
+    `set_throttle` sets the throttle of a continuous servo
+    Args:
+        throttle (float): Throttle value to set
+    Returns:
+        None
+
+    `rotate_servo` rotates the servo in the current direction
+    Standard mode: increments/decrements angle by `angle_change`
+    Continuous mode: sets throttle to +/- `max_throttle`
+    Args:
+        None
+    Returns:
+        None
+
+    `stop_servo` stops the servo
+    Continuous mode: sets throttle to `calibrated_stop_throttle`
+    Standard mode: holds the current angle
+    Args:
+        None
+    Returns:
+        None
+
+"""
 
 
 class ServoMotor:
@@ -60,7 +99,7 @@ class ServoMotor:
 
         self.calibrated_stop_throttle = calibrated_stop_throttle
 
-    def set_angle(self, angle: int):
+    def set_angle(self, angle: int) -> None:
         self.angle = max(0, min(180, angle)) if self.clip else angle
 
         try:
@@ -68,7 +107,7 @@ class ServoMotor:
         except Exception as e:
             print(f"Error: {e}. Angle exceeded but no one cares")
 
-    def set_throttle(self, throttle: float):
+    def set_throttle(self, throttle: float) -> None:
         self.throttle = throttle
         self.servo.throttle = throttle
 
@@ -88,15 +127,24 @@ class ServoMotor:
                 )
             )
 
-    def stop_servo(self):
+    def stop_servo(self) -> None:
         if self.continuous:
             self.set_throttle(self.calibrated_stop_throttle)
         else:
             self.set_angle(self.angle)
 
 
+"""Initializes and configures all actuators and input buttons for the SDS MCU.
+
+Sets up the following hardware:
+    - Rotator button (GP22): Digital input with pull-up resistor, controls the servo motor.
+    - Actuator button (GP19): Digital input with pull-up resistor, controls the linear actuator.
+    - Servo motor (GP28): Servo motor for aligning lock-and-key mechanism.
+    - Linear actuator (GP11): Motor for deploying the mechanical arm, with custom max throttle and calibrated stop throttle values.
+"""
+
+
 def init() -> None:
-    # Initiate Objects for the Servos and the Buttons
 
     # Buttons
     global rotator_button
@@ -123,19 +171,39 @@ def init() -> None:
     )
 
 
+"""Initiates a while loop that polls for the release of the button
+
+Args:
+    button (digitalInOut): 
+
+Returns:
+    None
+"""
+
+
 def await_button_release(button: digitalInOut) -> None:
     while True:
         if button.value:
             return
 
 
-def post_server(http, sensor_readings) -> None:
+"""
+The following functions make varying POST or GET http requests to the server.
+Each http request is sent with 'headers' including the API-Key and a defined
+TIMEOUT value of 30 seconds to ensure the promise is not waiting indefinitely
+to be fulfilled and a 408 timeout error code will be thrown.
+In case of off-chance errors, each http call is tried up to 5 times before
+an error status code is thrown.
+"""
+
+
+# sensor_readings (dict) are POSTED to server and appended to server queue
+def post_server(http, payload) -> None:
     data = {
         "to": "server",
-        "data": sensor_readings,
+        "data": payload,
     }
 
-    # calls server up to 5 times, and if don't break early then checks on the 5th time
     for i in range(5):
         response = http.post(
             f"{BASE_URL}/receive",
@@ -156,10 +224,11 @@ def post_server(http, sensor_readings) -> None:
     response.close()
 
 
-def post_mcu_sensor_box(http, sensor_readings) -> None:
+# sensor_readings (dict) are POSTED to server and appended to MCU queue specified by `to`
+def post_mcu_sensor_box(http, payload) -> None:
     data = {
         "to": "mcu_sensor_box",
-        "data": sensor_readings,
+        "data": payload,
     }
 
     for _ in range(5):
@@ -182,6 +251,7 @@ def post_mcu_sensor_box(http, sensor_readings) -> None:
     response.close()
 
 
+# Data is requested from server queue
 def get_server(http) -> None:
     for _ in range(5):
         response = http.get(
@@ -204,6 +274,7 @@ def get_server(http) -> None:
     response.close()
 
 
+# Data is requested from MCU queue specified by `target`
 def get_mcu_sensor_box(http) -> None:
     target_dictionary = {
         "target": "mcu_sensor_box",
@@ -229,6 +300,20 @@ def get_mcu_sensor_box(http) -> None:
         print(f"Data from mcu_sensor_box: {response_dictionary.get('data')}")
 
     response.close()
+
+
+"""
+Connects to WiFi, establishes an HTTP session, `/render.pem` stores the certification.
+Enters an infinite while loop that checks whether either of the buttons have been pressed,
+and if so, enters another infinite loop to check when they are released. Then, changes
+rotation direction by incrementing the list index of `ServoMotor.ROTATION_DIRECTIONS`.
+If the value is not `ServoMotor.ROTATE_STOP`, the motor is rotated.
+
+Each iteration checks that both conditions (10 second interval has passed since last http request,
+and both motors are in `ServoMotor.ROTATE_STOP` states) have been met and then runs the
+http request function, posting `payload` to both the server and the DCC MCU, and then retrieves any
+pending data from each.
+"""
 
 
 def main() -> None:
@@ -281,14 +366,14 @@ def main() -> None:
             rotator.direction == ServoMotor.ROTATE_STOP
             and actuator.direction == ServoMotor.ROTATE_STOP
         ) and (current_time > last_time + 10):
-            sensor_readings = {
+            payload = {
                 "location": 0,
                 "time": time.time(),
                 "id": "mcu_arm",
                 "status": "active",
             }
-            post_server(http, sensor_readings)
-            post_mcu_sensor_box(http, sensor_readings)
+            post_server(http, payload)
+            post_mcu_sensor_box(http, payload)
             get_server(http)
             get_mcu_sensor_box(http)
             last_time = time.time()
